@@ -114,9 +114,9 @@ fn init_luna_libs<'lua>(
 ) {
   let lib_core = ctx.create_table().unwrap();
   let print_to_console = ctx.create_function(core::print_to_console).unwrap();
-  lib_core.set("PrintToConsole", print_to_console).unwrap();
+  lib_core.raw_set("PrintToConsole", print_to_console).unwrap();
 
-  libs.set("Luna/Core", lib_core).unwrap();
+  libs.raw_set("Luna/Core", lib_core).unwrap();
 }
 
 fn init_plugin_libs<'lua>(
@@ -126,7 +126,7 @@ fn init_plugin_libs<'lua>(
 ) {
   for plugin in plugins {
     let lib = ctx.create_table().unwrap();
-    libs.set(plugin.identifier(), lib).unwrap();
+    libs.raw_set(plugin.identifier(), lib).unwrap();
   }
 }
 
@@ -135,7 +135,7 @@ fn init_libs(plugins: &Vec<Plugin>, ctx: &rlua::Context) {
   let libs_table = ctx.create_table().unwrap();
   init_plugin_libs(&libs_table, &plugins, &ctx);
   init_luna_libs(&libs_table, &ctx);
-  globals.set("luna_libs", libs_table).unwrap();
+  globals.raw_set("luna_libs", libs_table).unwrap();
 }
 
 fn setup_lua_state() -> rlua::Lua {
@@ -235,9 +235,9 @@ impl PluginSystem {
     env_mt.raw_set("__newindex", env_newindex).unwrap();
 
     let environment: rlua::Table = ctx.create_table().unwrap();
-    environment.set("Plugin", pl_info).unwrap();
-    environment.set("require", require).unwrap();
-    environment.set("_G", environment.clone()).unwrap();
+    environment.raw_set("Plugin", pl_info).unwrap();
+    environment.raw_set("require", require).unwrap();
+    environment.raw_set("_G", environment.clone()).unwrap();
     environment.set_metatable(Some(env_mt));
     environment
   }
