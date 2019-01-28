@@ -159,12 +159,27 @@ fn init_luna_libs<'lua>(
   // Core
   let print_to_console = ctx.create_function(core::print_to_console).unwrap();
   lib_core.raw_set("PrintToConsole", print_to_console).unwrap();
+  map_funcs(
+    &globals,
+    &lib_table,
+    &["tonumber", "tostring"],
+    &["ToNumber", "ToString"],
+  );
 
   // Table
   let orig_lib_table: rlua::Table = globals.raw_get("table").unwrap();
-  let old = ["concat", "insert", "pack", "remove", "sort", "unpack"];
-  let new = ["Concat", "Insert", "Pack", "Remove", "Sort", "Unpack"];
-  map_funcs(&orig_lib_table, &lib_table, &old, &new);
+  map_funcs(
+    &orig_lib_table,
+    &lib_table,
+    &["concat", "insert", "pack", "remove", "sort", "unpack"],
+    &["Concat", "Insert", "Pack", "Remove", "Sort", "Unpack"],
+  );
+  map_funcs(
+    &globals,
+    &lib_table,
+    &["ipairs", "pairs"],
+    &["IPairs", "Pairs"],
+  );
 
   // String
   let orig_lib_string: rlua::Table = globals.raw_get("string").unwrap();
