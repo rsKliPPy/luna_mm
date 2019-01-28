@@ -36,6 +36,7 @@ fn load_manifest(
 
 pub struct Plugin {
   identifier: String,
+  directory: PathBuf,
   main_source_path: PathBuf,
   info: PluginInfo,
   dependencies: HashMap<String, String>,
@@ -66,6 +67,7 @@ impl Plugin {
     Ok(Plugin {
       identifier: identifier.to_string(),
       main_source_path: main_path.clone(),
+      directory: dir.clone(),
       info: manifest.info,
       dependencies: manifest.dependencies,
       metadata: manifest.metadata,
@@ -90,5 +92,9 @@ impl Plugin {
 
   pub fn dependencies(&self) -> &HashMap<String, String> {
     &self.dependencies
+  }
+
+  pub fn directory(&self) -> &Path {
+    &self.directory
   }
 }

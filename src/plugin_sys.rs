@@ -3,6 +3,7 @@ pub mod plugin;
 
 use std::collections::HashSet;
 use std::path::{PathBuf, Path};
+use std::sync::Arc;
 use std::error::Error;
 use std::io;
 use std::fs;
@@ -204,7 +205,6 @@ fn init_libs(plugins: &Vec<Plugin>, ctx: &rlua::Context) {
 
 fn setup_lua_state() -> rlua::Lua {
   let lua = rlua::Lua::new();
-
   lua
 }
 
@@ -245,11 +245,14 @@ impl PluginSystem {
     visited: &mut HashSet<&'a str>,
   ) {
     visited.insert(plugin.identifier());
+
     let main_contents = fs::read_to_string(plugin.main_source_path()).unwrap();
+    let plugin_handle = Arc::new(ctx.create_registry_value(core::PluginHandle::from_plugin(&plugin)).unwrap());
+    let env = core::setup_environment(plugin.directory(), plugin.directory(), plugin_handle, &ctx);
     let chunk: rlua::Chunk = ctx.load(&main_contents)
                 .set_name(plugin.identifier())
                 .unwrap()
-                .set_environment(Self::setup_environment(&plugin, &ctx))
+                .set_environment(env)
                 .unwrap();
 
     match chunk.call::<_, rlua::Value>(()) {
@@ -270,28 +273,6 @@ impl PluginSystem {
       }
       _ => { }
     };
-  }
-
-  fn setup_environment<'lua>(
-    plugin: &Plugin,
-    ctx: &rlua::Context<'lua>,
-  ) -> rlua::Table<'lua> {
-    let forbid_index = ctx.create_function(core::forbid_index).unwrap();
-    let env_newindex = forbid_index.clone();
-    
-    let pl_info = core::PluginHandle::from_plugin(&plugin);
-    let require = ctx.create_function(core::require).unwrap();
-
-    let env_mt: rlua::Table = ctx.create_table().unwrap();
-    env_mt.raw_set("__index", forbid_index).unwrap();
-    env_mt.raw_set("__newindex", env_newindex).unwrap();
-
-    let environment: rlua::Table = ctx.create_table().unwrap();
-    environment.raw_set("Plugin", pl_info).unwrap();
-    environment.raw_set("require", require).unwrap();
-    environment.raw_set("_G", environment.clone()).unwrap();
-    environment.set_metatable(Some(env_mt));
-    environment
   }
 
   fn add_to_plugin_lib<'lua>(
