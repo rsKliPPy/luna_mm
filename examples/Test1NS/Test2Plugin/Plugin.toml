@@ -1,0 +1,6 @@
+[Info]
+Title = "Test2Plugin"
+Description = "Second Test Plugin"
+Version = "0.1.0"
+Interface = 1
+Authors = ["KliPPy"]

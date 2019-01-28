@@ -1,0 +1,9 @@
+[Info]
+Title = "Test1Plugin"
+Description = "First Test Plugin"
+Version = "0.1.0"
+Interface = 1
+Authors = ["KliPPy"]
+
+[Dependencies]
+"Test1NS/Test2Plugin" = "^0.1.0"
