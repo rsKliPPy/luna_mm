@@ -112,11 +112,75 @@ fn init_luna_libs<'lua>(
   libs: &rlua::Table<'lua>,
   ctx: &rlua::Context<'lua>,
 ) {
-  let lib_core = ctx.create_table().unwrap();
+  fn map_funcs<'lua>(
+    old_table: &rlua::Table<'lua>,
+    new_table: &rlua::Table<'lua>,
+    old_keys: &[&str],
+    new_keys: &[&str],
+  ) {
+    old_keys.iter().zip(new_keys.iter()).for_each(|(old, new)| {
+      new_table.raw_set(
+        *new,
+        old_table.raw_get::<_, rlua::Value>(*old).unwrap()
+      ).unwrap();
+    });
+  }
+
+  fn replace_string_metatable<'lua>(
+    ctx: &rlua::Context<'lua>,
+    mt: rlua::Table<'lua>,
+  ) {
+    // This is hacky as hell but seems like it's the only way to change
+    // the string type metatable in rlua.
+    let str_object: rlua::String = ctx.create_string("").unwrap();
+    let str_object: rlua::Table = unsafe { std::mem::transmute(str_object) };
+    let str_mt: rlua::Table = str_object.get_metatable().unwrap();
+    let str_mt: rlua::Table = str_mt.raw_get("__index").unwrap();
+
+    // Empty the old string type metatable
+    str_mt.clone()
+      .pairs::<rlua::Value, rlua::Value>()
+      .map(Result::unwrap)
+      .for_each(|(k, _)| str_mt.raw_set(k, rlua::Nil).unwrap());
+
+    // Add new methods
+    mt.clone()
+      .pairs::<rlua::Value, rlua::Value>()
+      .map(Result::unwrap)
+      .for_each(|(k, v)| str_mt.raw_set(k, v).unwrap());
+  }
+
+  let globals = ctx.globals();
+  let lib_core: rlua::Table = ctx.create_table().unwrap();
+  let lib_table: rlua::Table = ctx.create_table().unwrap();
+  let lib_string: rlua::Table = ctx.create_table().unwrap();
+
+  // Core
   let print_to_console = ctx.create_function(core::print_to_console).unwrap();
   lib_core.raw_set("PrintToConsole", print_to_console).unwrap();
 
+  // Table
+  let orig_lib_table: rlua::Table = globals.raw_get("table").unwrap();
+  let old = ["concat", "insert", "pack", "remove", "sort", "unpack"];
+  let new = ["Concat", "Insert", "Pack", "Remove", "Sort", "Unpack"];
+  map_funcs(&orig_lib_table, &lib_table, &old, &new);
+
+  // String
+  let orig_lib_string: rlua::Table = globals.raw_get("string").unwrap();
+  let old = [
+    "find", "format", "gmatch", "gsub", "len", "lower",
+    "match", "rep", "reverse", "sub", "upper"
+  ];
+  let new = [
+    "Find", "Format", "GlobalMatch", "GlobalReplace", "Length",
+    "ToLower", "Match", "Repeat", "Reverse", "SubString", "ToUpper"
+  ];
+  map_funcs(&orig_lib_string, &lib_string, &old, &new);
+  replace_string_metatable(ctx, lib_string.clone());
+
   libs.raw_set("Luna/Core", lib_core).unwrap();
+  libs.raw_set("Luna/Table", lib_table).unwrap();
+  libs.raw_set("Luna/String", lib_string).unwrap();
 }
 
 fn init_plugin_libs<'lua>(
@@ -140,18 +204,6 @@ fn init_libs(plugins: &Vec<Plugin>, ctx: &rlua::Context) {
 
 fn setup_lua_state() -> rlua::Lua {
   let lua = rlua::Lua::new();
-
-  // lua.context(|ctx: rlua::Context| {
-  //   let globals = ctx.globals();
-  //   let lib_coroutine: rlua::Table = globals.get("coroutine").unwrap();
-  //   let lib_table: rlua::Table = globals.get("table").unwrap();
-  //   let lib_io: rlua::Table = globals.get("io").unwrap();
-  //   let lib_os: rlua::Table = globals.get("os").unwrap();
-  //   let lib_string: rlua::Table = globals.get("string").unwrap();
-  //   let lib_utf8: rlua::Table = globals.get("utf8").unwrap();
-  //   let lib_math: rlua::Table = globals.get("math").unwrap();
-  //   let lib_package: rlua::Table = globals.get("package").unwrap();
-  // });
 
   lua
 }
@@ -248,8 +300,8 @@ impl PluginSystem {
     lib: &rlua::Table<'lua>
   ) {
     let globals = ctx.globals();
-    let libs: rlua::Table = globals.get("luna_libs").unwrap();
-    let plugin_lib: rlua::Table = libs.get(pl.identifier()).unwrap();
+    let libs: rlua::Table = globals.raw_get("luna_libs").unwrap();
+    let plugin_lib: rlua::Table = libs.raw_get(pl.identifier()).unwrap();
     lib.clone()
       .pairs::<rlua::Value, rlua::Value>()
       .map(Result::unwrap)

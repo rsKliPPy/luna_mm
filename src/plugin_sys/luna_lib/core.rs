@@ -81,7 +81,7 @@ pub fn forbid_index(
 pub fn require(ctx: rlua::Context, lib: String) -> rlua::Result<rlua::Table> {
   let globals = ctx.globals();
   let libs_table: rlua::Table = globals.raw_get("luna_libs").unwrap();
-  libs_table.get(lib)
+  libs_table.raw_get(lib)
 }
 
 pub fn print_to_console(_: rlua::Context, message: String) -> rlua::Result<()> {
