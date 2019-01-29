@@ -7,6 +7,6 @@ Core.PrintToConsole('=== Hello from Lua! I am ' .. Plugin:GetIdentifier() .. ' =
 P2.CrossPluginCommunication('Yay!')
 Core.PrintToConsole(Plugin == OF.PluginHandle and "Equal" or "Not Equal")
 
-Listeners.On(Listeners.Events.ClientConnected, function(player)
+Listeners.On(Listeners.Events.ClientConnected, function()
   Core.PrintToConsole("=== Client connected! ===");
 end)

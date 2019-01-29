@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::lua_helpers::call_lua;
 
 pub struct LuaEventEmitter {
   handlers: HashMap<String, Vec<rlua::RegistryKey>>,
@@ -27,12 +28,22 @@ impl LuaEventEmitter {
     }
   }
 
-  pub fn emit<'lua, TParams>(&self, ctx: &rlua::Context<'lua>, event_name: &str, params: TParams) where TParams: rlua::ToLuaMulti<'lua> + Clone {
+  pub fn emit<'lua, TParams>(
+    &self,
+    ctx: &rlua::Context<'lua>,
+    event_name: &str,
+    params: TParams,
+  ) -> rlua::Result<()>
+  where
+    TParams: rlua::ToLuaMulti<'lua> + Clone,
+  {
     if let Some(listeners) = self.handlers.get(event_name) {
       listeners
         .iter()
         .map(|key| ctx.registry_value::<rlua::Function>(key).unwrap())
-        .for_each(|f: rlua::Function| f.call(params.clone()).unwrap())
+        .try_for_each(|f| call_lua::<_, ()>(&ctx, &f, params.clone()))
+    } else {
+      Ok(())
     }
   }
 

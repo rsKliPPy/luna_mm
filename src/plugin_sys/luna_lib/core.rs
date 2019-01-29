@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::path::Path;
 use crate::plugin_sys::plugin::Plugin;
 use crate::ffi_wrapper::log_console;
+use crate::lua_helpers;
 
 // TODO: Possibly take &rlua::Context in `from_plugin` and create plugin info
 // tables in the registry.
@@ -123,7 +124,7 @@ pub fn require_with_context(base: &Path, current: &Path, plugin_key: Arc<rlua::R
       file_path.extend(lib.split('/').skip(1));
       file_path.set_extension("lua");
 
-      log_console(format!("File path: {}", file_path.display()));
+      unsafe { log_console(format!("File path: {}", file_path.display())) };
 
       let contents = match std::fs::read_to_string(file_path) {
         Ok(contents) => contents,
@@ -133,15 +134,17 @@ pub fn require_with_context(base: &Path, current: &Path, plugin_key: Arc<rlua::R
       let env = setup_environment(&base, &current, Arc::clone(&plugin_key), &ctx);
 
       // TODO: Set environment and name
-      let value = ctx.load(&contents)
-                  .set_environment(env)
-                  .unwrap()
-                  .call::<_, rlua::Value>(())?;
+      let func: rlua::Function = ctx.load(&contents)
+                  .set_environment(env).unwrap()
+                  .into_function().unwrap();
 
-      Ok(match value {
-        rlua::Value::Table(table) => table,
-        _ => ctx.create_table().unwrap(),
-      })
+      let value = lua_helpers::call_lua::<_, rlua::Value>(&ctx, &func, ());
+
+      if let Ok(rlua::Value::Table(table)) = value {
+        Ok(table)
+      } else {
+        ctx.create_table()
+      }
     } else {
       let libs_table: rlua::Table = globals.raw_get("luna_libs").unwrap();
       libs_table.raw_get(lib)
@@ -158,6 +161,6 @@ pub fn forbid_index(
 }
 
 pub fn print_to_console(_: rlua::Context, message: String) -> rlua::Result<()> {
-  log_console(message);
+  unsafe { log_console(message) };
   Ok(())
 }

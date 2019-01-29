@@ -66,7 +66,10 @@ fn load_plugins(dir: &Path) -> Vec<Plugin> {
   let ns_iter = match fs::read_dir(&dir) {
     Ok(iter) => iter,
     Err(err) => {
-      log_error(format!("Couldn't load from \"{}\": {}", dir.display(), err));
+      // TODO: Add logging
+      unsafe {
+        log_error(format!("Couldn't load from \"{}\": {}", dir.display(), err));
+      }
       return plugins;
     },
   };
@@ -99,7 +102,10 @@ fn load_plugins(dir: &Path) -> Vec<Plugin> {
 
       match load_result {
         Err(e) => {
-          log_error(format!("Couldn't load \"{}\": {}", identifier, e));
+          unsafe {
+            // TODO: Add loggin
+            log_error(format!("Couldn't load \"{}\": {}", identifier, e));
+          }
           continue;
         }
         _ => { }
@@ -107,7 +113,9 @@ fn load_plugins(dir: &Path) -> Vec<Plugin> {
     }
   }
 
-  log_message(format!("Loaded {} plugins.", plugins.len()));
+  unsafe {
+    log_message(format!("Loaded {} plugins.", plugins.len()));
+  }
 
   plugins
 }
@@ -232,8 +240,11 @@ fn setup_lua_state(state: Arc<Mutex<GlobalState>>) -> rlua::Lua {
 
   lua.context(|ctx: rlua::Context| {
     let globals = ctx.globals();
+
     let global_state = GlobalStateUserData(state);
     globals.raw_set("luna_global_state", global_state).unwrap();
+
+    globals.raw_set("luna_call_level", 0).unwrap();
   });
   
   lua
@@ -241,7 +252,6 @@ fn setup_lua_state(state: Arc<Mutex<GlobalState>>) -> rlua::Lua {
 
 
 pub struct PluginSystem {
-  directory: PathBuf,
   plugins: Vec<Plugin>,
   lua: rlua::Lua,
 }
@@ -254,7 +264,6 @@ impl PluginSystem {
     lua.context(|ctx| init_libs(&plugins, &ctx));
     
     PluginSystem {
-      directory: directory.clone(),
       plugins: plugins,
       lua: lua,
     }
@@ -284,30 +293,15 @@ impl PluginSystem {
     let main_contents = fs::read_to_string(plugin.main_source_path()).unwrap();
     let plugin_handle = Arc::new(ctx.create_registry_value(core::PluginHandle::from_plugin(&plugin)).unwrap());
     let env = core::setup_environment(plugin.directory(), plugin.directory(), plugin_handle, &ctx);
-    let chunk: rlua::Chunk = ctx.load(&main_contents)
-                .set_name(plugin.identifier())
-                .unwrap()
-                .set_environment(env)
-                .unwrap();
+    let chunk: rlua::Function = ctx.load(&main_contents)
+                .set_name(plugin.identifier()).unwrap()
+                .set_environment(env).unwrap()
+                .into_function().unwrap();
 
-    match chunk.call::<_, rlua::Value>(()) {
-      Err(err) => {
-        match err {
-          rlua::Error::RuntimeError(msg) => {
-            log_error(format!("Runtime error - {}", msg));
-          },
-          rlua::Error::CallbackError{ traceback, cause } => {
-            log_error(format!("Lua callback error - {}", cause));
-            traceback.lines().for_each(log_error);
-          }
-          _ => log_error(format!("Lua error - {}", err)),
-        };
-      }
-      Ok(rlua::Value::Table(table)) => {
-        Self::add_to_plugin_lib(&plugin, &ctx, &table);
-      }
-      _ => { }
-    };
+    let result = lua_helpers::call_lua::<_, rlua::Value>(&ctx, &chunk, ());
+    if let Ok(rlua::Value::Table(table)) = result {
+      Self::add_to_plugin_lib(&plugin, &ctx, &table);
+    }
   }
 
   fn add_to_plugin_lib<'lua>(
