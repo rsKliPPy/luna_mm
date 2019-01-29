@@ -1,15 +1,18 @@
 mod luna_lib;
 pub mod plugin;
+pub mod events;
 
 use std::collections::HashSet;
 use std::path::{PathBuf, Path};
-use std::sync::Arc;
 use std::error::Error;
+use std::sync::{Arc, Mutex};
 use std::io;
 use std::fs;
 use crate::ffi_wrapper::{log_error, log_message};
+use crate::global_state::{GlobalState, GlobalStateUserData};
+use crate::lua_helpers;
 use self::plugin::Plugin;
-use self::luna_lib::core;
+use self::luna_lib::{core, listeners};
 
 fn get_identifier_from_path(dir: &Path) -> String {
   // TODO: Return result, don't unwrap
@@ -113,20 +116,6 @@ fn init_luna_libs<'lua>(
   libs: &rlua::Table<'lua>,
   ctx: &rlua::Context<'lua>,
 ) {
-  fn map_funcs<'lua>(
-    old_table: &rlua::Table<'lua>,
-    new_table: &rlua::Table<'lua>,
-    old_keys: &[&str],
-    new_keys: &[&str],
-  ) {
-    old_keys.iter().zip(new_keys.iter()).for_each(|(old, new)| {
-      new_table.raw_set(
-        *new,
-        old_table.raw_get::<_, rlua::Value>(*old).unwrap()
-      ).unwrap();
-    });
-  }
-
   fn replace_string_metatable<'lua>(
     ctx: &rlua::Context<'lua>,
     mt: rlua::Table<'lua>,
@@ -155,11 +144,12 @@ fn init_luna_libs<'lua>(
   let lib_core: rlua::Table = ctx.create_table().unwrap();
   let lib_table: rlua::Table = ctx.create_table().unwrap();
   let lib_string: rlua::Table = ctx.create_table().unwrap();
+  let lib_listeners: rlua::Table = ctx.create_table().unwrap();
+
+  ////////// Re-map old functions to new names //////////
 
   // Core
-  let print_to_console = ctx.create_function(core::print_to_console).unwrap();
-  lib_core.raw_set("PrintToConsole", print_to_console).unwrap();
-  map_funcs(
+  lua_helpers::map_funcs(
     &globals,
     &lib_table,
     &["tonumber", "tostring"],
@@ -168,13 +158,13 @@ fn init_luna_libs<'lua>(
 
   // Table
   let orig_lib_table: rlua::Table = globals.raw_get("table").unwrap();
-  map_funcs(
+  lua_helpers::map_funcs(
     &orig_lib_table,
     &lib_table,
     &["concat", "insert", "pack", "remove", "sort", "unpack"],
     &["Concat", "Insert", "Pack", "Remove", "Sort", "Unpack"],
   );
-  map_funcs(
+  lua_helpers::map_funcs(
     &globals,
     &lib_table,
     &["ipairs", "pairs"],
@@ -191,12 +181,31 @@ fn init_luna_libs<'lua>(
     "Find", "Format", "GlobalMatch", "GlobalReplace", "Length",
     "ToLower", "Match", "Repeat", "Reverse", "SubString", "ToUpper"
   ];
-  map_funcs(&orig_lib_string, &lib_string, &old, &new);
+  lua_helpers::map_funcs(&orig_lib_string, &lib_string, &old, &new);
   replace_string_metatable(ctx, lib_string.clone());
+
+  ////////// New functions //////////
+  
+  // Core
+  let print_to_console = ctx.create_function(core::print_to_console).unwrap();
+  lib_core.raw_set("PrintToConsole", print_to_console).unwrap();
+
+  // Listeners
+  let enum_values = ["ClientConnected"];
+  let events_enum = ctx.create_table_from(
+    enum_values.iter().map(|&x| x).zip(enum_values.iter().map(|&x| x))
+  ).unwrap();
+
+  let add_listener = ctx.create_function(listeners::add_listener).unwrap();
+  let remove_listener = ctx.create_function(listeners::remove_listener).unwrap();
+  lib_listeners.raw_set("On", add_listener).unwrap();
+  lib_listeners.raw_set("Off", remove_listener).unwrap();
+  lib_listeners.raw_set("Events", events_enum).unwrap();
 
   libs.raw_set("Luna/Core", lib_core).unwrap();
   libs.raw_set("Luna/Table", lib_table).unwrap();
   libs.raw_set("Luna/String", lib_string).unwrap();
+  libs.raw_set("Luna/Listeners", lib_listeners).unwrap();
 }
 
 fn init_plugin_libs<'lua>(
@@ -218,8 +227,15 @@ fn init_libs(plugins: &Vec<Plugin>, ctx: &rlua::Context) {
   globals.raw_set("luna_libs", libs_table).unwrap();
 }
 
-fn setup_lua_state() -> rlua::Lua {
+fn setup_lua_state(state: Arc<Mutex<GlobalState>>) -> rlua::Lua {
   let lua = rlua::Lua::new();
+
+  lua.context(|ctx: rlua::Context| {
+    let globals = ctx.globals();
+    let global_state = GlobalStateUserData(state);
+    globals.raw_set("luna_global_state", global_state).unwrap();
+  });
+  
   lua
 }
 
@@ -231,10 +247,10 @@ pub struct PluginSystem {
 }
 
 impl PluginSystem {
-  pub fn mount(directory: impl Into<PathBuf>) -> Self {
+  pub fn mount(directory: impl Into<PathBuf>, state: Arc<Mutex<GlobalState>>) -> Self {
     let directory = directory.into();
     let plugins = load_plugins(&directory);
-    let lua = setup_lua_state();
+    let lua = setup_lua_state(state);
     lua.context(|ctx| init_libs(&plugins, &ctx));
     
     PluginSystem {
@@ -252,6 +268,10 @@ impl PluginSystem {
         Self::run_plugin(&pl, &ctx, &mut visited);
       });
     }
+  }
+
+  pub fn lua(&self) -> &rlua::Lua {
+    &self.lua
   }
 
   fn run_plugin<'a>(

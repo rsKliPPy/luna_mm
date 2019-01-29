@@ -1,27 +1,47 @@
+pub mod ffi_util_funcs;
+
 use std::ffi::{CString, CStr};
+use std::os::raw::{c_char, c_int};
 use std::path::PathBuf;
-use crate::plugin_sys::PluginSystem;
+use crate::module;
 use crate::plugin_info::PLUGIN_INFO;
 use crate::meta_ffi::globals::{
   ENGINE_FUNCTIONS,
   META_UTIL_FUNCS,
 };
+use crate::meta_ffi::types::Edict;
+use self::ffi_util_funcs::FFIUtilFuncs;
 
+// TODO: Redo this module, properly wrap unsafe functions into safe FFUtilFuncs
 
-pub struct ModuleContext {
-  pub plugin_path: PathBuf,
-  pub plugin_sys: PluginSystem,
+static mut MODULE_CONTEXT: Option<Box<dyn MetaContext>> = None;
+static UTIL_FUNCS: FFIUtilFuncs = FFIUtilFuncs::new();
+
+pub trait MetaContext {
+  fn client_connected(&mut self) { }
 }
 
-static mut MODULE_CONTEXT: Option<ModuleContext> = None;
-
-// These 2 should probably be unsafe functionsy
-pub fn init_module_context(init: impl FnOnce() -> ModuleContext) {
-  unsafe { MODULE_CONTEXT = Some(init()) };
+pub unsafe fn game_init() {
+  let ctx: Box<dyn MetaContext> = module::module_init(&UTIL_FUNCS);
+  MODULE_CONTEXT = Some(ctx);
 }
 
-pub fn destroy_module_context() {
-  unsafe { MODULE_CONTEXT = None };
+pub unsafe fn game_shutdown() {
+  let ctx = MODULE_CONTEXT.take().unwrap();
+  module::module_shutdown(ctx);
+}
+
+pub unsafe fn client_connect(
+  entity: *mut Edict,
+  name: *const c_char,
+  address: *const c_char,
+  reject_reason: *mut c_char,
+) -> c_int {
+  if let Some(ctx) = MODULE_CONTEXT.as_mut() {
+    ctx.client_connected();
+  }
+
+  1
 }
 
 #[allow(dead_code)]
@@ -58,9 +78,7 @@ pub fn log_error(message: impl AsRef<str>) {
 }
 
 
-pub fn get_plugin_path() -> PathBuf {
-  unsafe {
-    let func = (*META_UTIL_FUNCS).get_plugin_path;
-    PathBuf::from(CStr::from_ptr(func(&PLUGIN_INFO)).to_str().unwrap_or(""))
-  }
+pub unsafe fn get_plugin_path() -> PathBuf {
+  let func = (*META_UTIL_FUNCS).get_plugin_path;
+  PathBuf::from(CStr::from_ptr(func(&PLUGIN_INFO)).to_str().unwrap_or(""))
 }

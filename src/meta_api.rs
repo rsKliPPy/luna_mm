@@ -1,6 +1,7 @@
 use std::os::raw::{c_char, c_int};
-use crate::meta_ffi::globals;
 use crate::plugin_info::PLUGIN_INFO;
+use crate::ffi_wrapper;
+use crate::meta_ffi::globals;
 use crate::meta_ffi::util::set_meta_result;
 use crate::meta_ffi::constant::{
   DLL_INTERFACE_VERSION,
@@ -20,6 +21,7 @@ use crate::meta_ffi::types::{
   GameDLLFunctions,
   MetaFunctions,
   MetaResult,
+  Edict,
 };
 
 
@@ -104,7 +106,8 @@ unsafe extern fn get_entity_api2(
 
   globals::DLL_HOOK_TABLE = funcs;
 
-  (*globals::DLL_HOOK_TABLE).game_init = game_init;
+  (*funcs).game_init = game_init;
+  (*funcs).client_connect = client_connect;
 
   1
 }
@@ -187,11 +190,20 @@ unsafe extern fn get_engine_functions_post(
 }
 
 unsafe extern fn game_init() {
-  crate::module::module_init();
+  ffi_wrapper::game_init();
   set_meta_result(MetaResult::Ignored)
 }
 
 unsafe extern fn game_shutdown() {
-  crate::module::module_shutdown();
+  ffi_wrapper::game_shutdown();
   set_meta_result(MetaResult::Ignored)
+}
+
+unsafe extern fn client_connect(
+  entity: *mut Edict,
+  name: *const c_char,
+  address: *const c_char,
+  reject_reason: *mut c_char,
+) -> c_int {
+  ffi_wrapper::client_connect(entity, name, address, reject_reason)
 }
