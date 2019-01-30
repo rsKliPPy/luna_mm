@@ -14,6 +14,7 @@ use crate::lua_helpers;
 use self::plugin::Plugin;
 use self::luna_lib::{core, listeners};
 
+
 fn get_identifier_from_path(dir: &Path) -> String {
   // TODO: Return result, don't unwrap
   let ident = dir.file_name().unwrap()
@@ -181,7 +182,10 @@ fn init_luna_libs<'lua>(
   lib_core.raw_set("PrintToConsole", print_to_console).unwrap();
 
   // Listeners
-  let enum_values = ["ClientConnected"];
+  let enum_values = [
+    "ClientConnected",
+    "PluginsLoaded", "PluginsWillUnload", "PluginsUnloading"
+  ];
   let events_enum = ctx.create_table_from(
     enum_values.iter().map(|&x| x).zip(enum_values.iter().map(|&x| x))
   ).unwrap();
@@ -259,6 +263,13 @@ impl PluginSystem {
         Self::run_plugin(&pl, &ctx, &mut visited);
       });
     }
+
+    self.lua.context(|ctx: rlua::Context| {
+      let globals = ctx.globals();
+      let state: GlobalStateUserData = globals.get("luna_global_state").unwrap();
+      let state = state.0.lock().unwrap();
+      let _ = state.listeners.emit(&ctx, "PluginsLoaded", ());
+    });
   }
 
   pub fn lua(&self) -> &rlua::Lua {
@@ -298,5 +309,17 @@ impl PluginSystem {
       .pairs::<rlua::Value, rlua::Value>()
       .map(Result::unwrap)
       .for_each(|(k, v)| plugin_lib.raw_set(k, v).unwrap());
+  }
+}
+
+impl Drop for PluginSystem {
+  fn drop(&mut self) {
+    self.lua.context(|ctx: rlua::Context| {
+      let globals = ctx.globals();
+      let state: GlobalStateUserData = globals.get("luna_global_state").unwrap();
+      let state = state.0.lock().unwrap();
+      let _ = state.listeners.emit(&ctx, "PluginsWillUnload", ());
+      let _ = state.listeners.emit(&ctx, "PluginsUnloading", ());
+    });
   }
 }
