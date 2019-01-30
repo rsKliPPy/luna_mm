@@ -14,6 +14,22 @@ pub fn map_funcs<'lua>(
   });
 }
 
+pub fn print_lua_error(error: &rlua::Error) {
+  // TODO: Add logging
+  match error {
+    rlua::Error::RuntimeError(msg) => unsafe {
+      log_error(format!("{}", msg));
+    },
+    rlua::Error::CallbackError{ traceback, cause } => {
+      unsafe { log_error(format!("{}", cause)) };
+      traceback.lines().for_each(|line| unsafe { log_error(line) });
+    }
+    _ => unsafe {
+      log_error(format!("{}", error));
+    }
+  }
+}
+
 pub fn call_lua<'lua, TParams, TReturn>(
   ctx: &rlua::Context<'lua>,
   func: &rlua::Function<'lua>,
@@ -32,21 +48,9 @@ where
   globals.raw_set("luna_call_level", call_level).unwrap();
 
   // If we are at the bottom of the call stack, print the error
-  // TODO: Add loggin
   if call_level == 0 {
     if let Err(err) = &result {
-      match err {
-        rlua::Error::RuntimeError(msg) => unsafe {
-          log_error(format!("{}", msg));
-        },
-        rlua::Error::CallbackError{ traceback, cause } => {
-          unsafe { log_error(format!("{}", cause)) };
-          traceback.lines().for_each(|line| unsafe { log_error(line) });
-        }
-        _ => unsafe {
-          log_error(format!("{}", err));
-        }
-      }
+      print_lua_error(&err);
     }
   }
 

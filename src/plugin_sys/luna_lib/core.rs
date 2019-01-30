@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::path::Path;
 use crate::plugin_sys::plugin::Plugin;
+use crate::plugin_sys::get_identifier_from_path;
 use crate::ffi_wrapper::log_console;
 use crate::lua_helpers;
 
@@ -126,19 +127,30 @@ pub fn require_with_context(base: &Path, current: &Path, plugin_key: Arc<rlua::R
 
       unsafe { log_console(format!("File path: {}", file_path.display())) };
 
-      let contents = match std::fs::read_to_string(file_path) {
+      let contents = match std::fs::read_to_string(&file_path) {
         Ok(contents) => contents,
         Err(err) => return Err(rlua::Error::RuntimeError(format!("{}", err))),
       };
 
       let env = setup_environment(&base, &current, Arc::clone(&plugin_key), &ctx);
 
-      // TODO: Set environment and name
-      let func: rlua::Function = ctx.load(&contents)
+      let local_file_path = file_path.strip_prefix(&base).unwrap();
+      let identifier = get_identifier_from_path(&base);
+      let name = format!("{}::{}", identifier, local_file_path.display());
+      let chunk = ctx.load(&contents)
+                  .set_name(&name).unwrap()
                   .set_environment(env).unwrap()
-                  .into_function().unwrap();
+                  .into_function();
 
-      let value = lua_helpers::call_lua::<_, rlua::Value>(&ctx, &func, ());
+      let chunk: rlua::Function = match chunk {
+        Ok(chunk) => chunk,
+        Err(err) => {
+          lua_helpers::print_lua_error(&err);
+          return ctx.create_table();
+        }
+      };
+
+      let value = lua_helpers::call_lua::<_, rlua::Value>(&ctx, &chunk, ());
 
       if let Ok(rlua::Value::Table(table)) = value {
         Ok(table)

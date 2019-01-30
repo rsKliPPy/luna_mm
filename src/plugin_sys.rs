@@ -15,7 +15,7 @@ use self::plugin::Plugin;
 use self::luna_lib::{core, listeners};
 
 
-fn get_identifier_from_path(dir: &Path) -> String {
+pub fn get_identifier_from_path(dir: &Path) -> String {
   // TODO: Return result, don't unwrap
   let ident = dir.file_name().unwrap()
               .to_os_string().into_string().unwrap();
@@ -286,10 +286,19 @@ impl PluginSystem {
     let main_contents = fs::read_to_string(plugin.main_source_path()).unwrap();
     let plugin_handle = Arc::new(ctx.create_registry_value(core::PluginHandle::from_plugin(&plugin)).unwrap());
     let env = core::setup_environment(plugin.directory(), plugin.directory(), plugin_handle, &ctx);
-    let chunk: rlua::Function = ctx.load(&main_contents)
-                .set_name(plugin.identifier()).unwrap()
+    let name = format!("{}::Plugin.lua", plugin.identifier());
+    let chunk = ctx.load(&main_contents)
+                .set_name(&name).unwrap()
                 .set_environment(env).unwrap()
-                .into_function().unwrap();
+                .into_function();
+
+    let chunk: rlua::Function = match chunk {
+      Ok(chunk) => chunk,
+      Err(err) => {
+        lua_helpers::print_lua_error(&err);
+        return;
+      }
+    };
 
     let result = lua_helpers::call_lua::<_, rlua::Value>(&ctx, &chunk, ());
     if let Ok(rlua::Value::Table(table)) = result {

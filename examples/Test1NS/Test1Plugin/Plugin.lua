@@ -6,16 +6,19 @@ local OF = require './OtherFile'
 Core.PrintToConsole('=== Hello from Lua! I am ' .. Plugin:GetIdentifier() .. ' ===')
 Core.PrintToConsole(Plugin == OF.PluginHandle and 'Equal' or 'Not Equal')
 
+local function AllPluginsLoaded()
+  Core.PrintToConsole('All plugins loaded')
+  --OF.ErroringFunc()
+
+  -- Cross-plugin communication is only safe after all plugins are loaded
+  P2.CrossPluginCommunication('Yay!')
+end
+
 Listeners.On(Listeners.Events.ClientConnected, function()
   Core.PrintToConsole('=== Client connected! ===');
 end)
 
-Listeners.On(Listeners.Events.PluginsLoaded, function()
-  Core.PrintToConsole('All plugins loaded')
-
-  -- Cross-plugin communication is only safe after all plugins are loaded
-  P2.CrossPluginCommunication('Yay!')
-end)
+Listeners.On(Listeners.Events.PluginsLoaded, AllPluginsLoaded)
 
 Listeners.On(Listeners.Events.PluginsWillUnload, function()
   Core.PrintToConsole('Plugins will unload')

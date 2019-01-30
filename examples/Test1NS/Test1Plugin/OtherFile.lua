@@ -1,3 +1,4 @@
 return {
-  PluginHandle = Plugin
+  PluginHandle = Plugin,
+  ErroringFunc = function() return X end,
 }
