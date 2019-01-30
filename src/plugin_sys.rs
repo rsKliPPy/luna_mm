@@ -74,44 +74,26 @@ fn load_plugins(dir: &Path) -> Vec<Plugin> {
     },
   };
 
-  for ns_entry in ns_iter {
-    let ns_entry = match ns_entry {
-      Ok(e) => e,
-      Err(_) => continue,
-    };
-    
-    let pl_iter = match fs::read_dir(ns_entry.path()) {
-      Ok(iter) => iter,
-      Err(_) => continue,
-    };
-
-    for pl_entry in pl_iter {
-      let pl_entry = match pl_entry {
-        Ok(e) => e,
-        Err(_) => continue,
-      };
-
-      let identifier = get_identifier_from_path(&pl_entry.path());
+  ns_iter
+    .filter_map(Result::ok)
+    .map(|entry| fs::read_dir(entry.path()))
+    .filter_map(Result::ok)
+    .flat_map(|x| x)
+    .filter_map(Result::ok)
+    .for_each(|entry| {
+      let ident = get_identifier_from_path(&entry.path());
       let load_result = load_plugin_from_dir(
         &dir,
-        &pl_entry.path(),
-        &identifier,
+        &entry.path(),
+        &ident,
         &mut visited_plugins,
         &mut plugins,
       );
 
-      match load_result {
-        Err(e) => {
-          unsafe {
-            // TODO: Add loggin
-            log_error(format!("Couldn't load \"{}\": {}", identifier, e));
-          }
-          continue;
-        }
-        _ => { }
+      if let Err(e) = load_result {
+        unsafe { log_error(format!("Couldn't load \"{}\": {}", ident, e)); }
       }
-    }
-  }
+    });
 
   unsafe {
     log_message(format!("Loaded {} plugins.", plugins.len()));
