@@ -68,9 +68,7 @@ fn load_plugins(dir: &Path) -> Vec<Plugin> {
     Ok(iter) => iter,
     Err(err) => {
       // TODO: Add logging
-      unsafe {
-        log_error(format!("Couldn't load from \"{}\": {}", dir.display(), err));
-      }
+      log_error(format!("Couldn't load from \"{}\": {}", dir.display(), err));
       return plugins;
     },
   };
@@ -92,13 +90,11 @@ fn load_plugins(dir: &Path) -> Vec<Plugin> {
       );
 
       if let Err(e) = load_result {
-        unsafe { log_error(format!("Couldn't load \"{}\": {}", ident, e)); }
+        log_error(format!("Couldn't load \"{}\": {}", ident, e));
       }
     });
 
-  unsafe {
-    log_message(format!("Loaded {} plugins.", plugins.len()));
-  }
+  log_message(format!("Loaded {} plugins.", plugins.len()));
 
   plugins
 }
@@ -183,8 +179,8 @@ fn init_luna_libs<'lua>(
 
   // Listeners
   let enum_values = [
-    "ClientConnected",
-    "PluginsLoaded", "PluginsWillUnload", "PluginsUnloading"
+    "ClientConnect", "PreClientPutInServer", "ClientPutInServer", "ClientDisconnect", "ClientDisconnected",
+    "PluginsLoaded", "PluginsWillUnload", "PluginsUnload",
   ];
   let events_enum = ctx.create_table_from(
     enum_values.iter().map(|&x| x).zip(enum_values.iter().map(|&x| x))
@@ -328,7 +324,7 @@ impl Drop for PluginSystem {
       let state: GlobalStateUserData = globals.get("luna_global_state").unwrap();
       let state = state.0.lock().unwrap();
       let _ = state.listeners.emit(&ctx, "PluginsWillUnload", ());
-      let _ = state.listeners.emit(&ctx, "PluginsUnloading", ());
+      let _ = state.listeners.emit(&ctx, "PluginsUnload", ());
     });
   }
 }

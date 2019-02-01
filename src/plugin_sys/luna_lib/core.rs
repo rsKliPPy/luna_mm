@@ -125,8 +125,6 @@ pub fn require_with_context(base: &Path, current: &Path, plugin_key: Arc<rlua::R
       file_path.extend(lib.split('/').skip(1));
       file_path.set_extension("lua");
 
-      unsafe { log_console(format!("File path: {}", file_path.display())) };
-
       let contents = match std::fs::read_to_string(&file_path) {
         Ok(contents) => contents,
         Err(err) => return Err(rlua::Error::RuntimeError(format!("{}", err))),
@@ -173,6 +171,6 @@ pub fn forbid_index(
 }
 
 pub fn print_to_console(_: rlua::Context, message: String) -> rlua::Result<()> {
-  unsafe { log_console(message) };
+  log_console(message);
   Ok(())
 }

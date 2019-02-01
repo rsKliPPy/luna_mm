@@ -1,4 +1,6 @@
-use std::os::raw::{c_char, c_void, c_int};
+use std::os::raw::{
+  c_char, c_void, c_int, c_short, c_float, c_uchar as c_byte
+};
 
 
 #[repr(C)]
@@ -88,13 +90,204 @@ unsafe impl Sync for PluginInfo { }
 // }
 
 #[repr(C)]
-pub struct Edict {
+#[derive(Clone, Copy)]
+pub struct EngineStringHandle(pub c_int);
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct EngineVector3(c_float, c_float, c_float);
+
+#[repr(C)]
+pub struct Edict {
+  free: c_int,
+  serial_number: c_int,
+  link: [*mut c_void; 2],
+  head_node: c_int,
+  num_leafs: c_int,
+  leafnums: [c_short; 48],
+  free_time: c_float,
+  private_data: *mut c_void,
+  entvars: EntVars,
+}
+
+impl Edict {
+  pub fn is_free(&self) -> bool {
+    self.free != 0
+  }
+
+  pub fn serial_number(&self) -> c_int {
+    self.serial_number
+  }
+
+  pub fn private_data(&self) -> *mut c_void {
+    self.private_data
+  }
 }
 
 #[repr(C)]
 pub struct EntVars {
+  pub classname: EngineStringHandle,
+  pub globalname: EngineStringHandle,
 
+  pub origin: EngineVector3,
+  pub oldorigin: EngineVector3,
+  pub velocity: EngineVector3,
+  pub basevelocity: EngineVector3,
+  pub clbasevelocity: EngineVector3,
+  pub movedir: EngineVector3,
+  pub angles: EngineVector3,
+  pub avelocity: EngineVector3,
+  pub punchangle: EngineVector3,
+  pub v_angle: EngineVector3,
+
+  pub endpos: EngineVector3,
+  pub startpos: EngineVector3,
+  pub impacttime: c_float,
+  pub starttime: c_float,
+
+  pub fixangle: c_int,
+  pub idealpitch: c_float,
+  pub pitch_speed: c_float,
+  pub ideal_yaw: c_float,
+  pub yaw_speed: c_float,
+
+  pub modelindex: c_int,
+  pub model: EngineStringHandle,
+
+  pub viewmodel: c_int,
+  pub weaponmodel: c_int,
+
+  pub absmin: EngineVector3,
+  pub absmax: EngineVector3,
+  pub mins: EngineVector3,
+  pub maxs: EngineVector3,
+  pub size: EngineVector3,
+
+  pub ltime: c_float,
+  pub nextthink: c_float,
+
+  pub movetype: c_int, // TODO: Create a `MoveType` enum
+  pub solid: c_int, // TODO: Create a `Solidity` enum
+
+  pub skin: c_int,
+  pub body: c_int,
+  pub effects: c_int,
+
+  pub gravity: c_float,
+  pub friction: c_float,
+
+  pub light_level: c_int,
+
+  pub sequence: c_int,
+  pub gaitsequence: c_int,
+  pub frame: c_float,
+  pub animtime: c_float,
+  pub framerate: c_float,
+  pub controller: [c_byte; 4],
+  pub blending: [c_byte; 2],
+
+  pub scale: c_float,
+
+  pub rendermode: c_int, // TODO: Create a `RenderMode` enum
+  pub renderamount: c_float,
+  pub rendercolor: EngineVector3,
+  pub renderfx: c_int, // TODO: Create a `RenderFX` enum
+
+  pub health: c_float,
+  pub frags: c_float,
+  pub weapons: c_int,
+  pub takedamage: c_float,
+
+  pub deadflag: c_int,
+  pub view_ofs: EngineVector3,
+
+  pub button: c_int,
+  pub impulse: c_int,
+
+  pub chain: *mut Edict,
+  pub dmg_inflictor: *mut Edict,
+  pub enemy: *mut Edict,
+  pub aiment: *mut Edict,
+  pub owner: *mut Edict,
+  pub groundentity: *mut Edict,
+
+  pub spawnflags: c_int,
+  pub flags: c_int, // TODO: Possibly create a `EdictFlags` enum
+
+  pub colormap: c_int,
+  pub team: c_int,
+
+  pub max_health: c_float,
+  pub teleport_time: c_float,
+  pub armortype: c_float,
+  pub armorvalue: c_float,
+  pub waterlevel: c_int,
+  pub watertype: c_int,
+
+  pub target: EngineStringHandle,
+  pub targetname: EngineStringHandle,
+  pub netname: EngineStringHandle,
+  pub message: EngineStringHandle,
+
+  pub dmg_take: c_float,
+  pub dmg_save: c_float,
+  pub dmg: c_float,
+  pub dmgtime: c_float,
+
+  // Make this an array?
+  pub noise: EngineStringHandle,
+  pub noise1: EngineStringHandle,
+  pub noise2: EngineStringHandle,
+  pub noise3: EngineStringHandle,
+
+  pub speed: c_float,
+  pub air_finished: c_float,
+  pub pain_finished: c_float,
+  pub radsuit_finished: c_float,
+
+  pub containing_entity: *mut Edict,
+
+  pub playerclass: c_int,
+  pub maxspeed: c_float,
+
+  pub fov: c_float,
+  pub weaponanim: c_int,
+
+  pub pushmsec: c_int,
+
+  pub in_duck: c_int,
+  pub time_step_sound: c_int,
+  pub swim_time: c_int,
+  pub duck_time: c_int,
+  pub step_left: c_int,
+  pub fall_velocity: c_float,
+
+  pub gamestate: c_int,
+
+  pub oldbuttons: c_int,
+
+  pub groupinfo: c_int,
+
+  // Make these arrays?
+  pub iuser1: c_int,
+  pub iuser2: c_int,
+  pub iuser3: c_int,
+  pub iuser4: c_int,
+
+  pub fuser1: c_float,
+  pub fuser2: c_float,
+  pub fuser3: c_float,
+  pub fuser4: c_float,
+
+  pub vuser1: EngineVector3,
+  pub vuser2: EngineVector3,
+  pub vuser3: EngineVector3,
+  pub vuser4: EngineVector3,
+
+  pub euser1: *mut Edict,
+  pub euser2: *mut Edict,
+  pub euser3: *mut Edict,
+  pub euser4: *mut Edict,
 }
 
 // #[repr(C)]
@@ -170,9 +363,9 @@ pub struct EngineFunctions {
   pub f63: unsafe extern fn() -> (),
   pub f64: unsafe extern fn() -> (),
   pub f65: unsafe extern fn() -> (),
-  pub f66: unsafe extern fn() -> (),
-  pub f67: unsafe extern fn() -> (),
-  pub f68: unsafe extern fn() -> (),
+  pub sz_from_index: unsafe extern fn(c_int) -> *const c_char,
+  pub alloc_string: unsafe extern fn(*const c_char) -> c_int,
+  pub get_vars_of_ent: unsafe extern fn(*mut Edict) -> *mut EntVars,
   pub f69: unsafe extern fn() -> (),
   pub f70: unsafe extern fn() -> (),
   pub f71: unsafe extern fn() -> (),

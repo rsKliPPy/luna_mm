@@ -9,6 +9,8 @@ rlua = "0.16.1"
 serde = "1.0.85"
 serde_derive = "1.0.85"
 toml = "0.4.10"
+memoffset = "0.2.1"
+lazy_static = "1.2.0"
 
 [lib]
 crate-type = ["cdylib"]

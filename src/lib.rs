@@ -1,3 +1,8 @@
+#[macro_use]
+extern crate memoffset;
+#[macro_use]
+extern crate lazy_static;
+
 mod ffi_wrapper;
 mod module;
 mod plugin_info;

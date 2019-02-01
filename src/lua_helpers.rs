@@ -17,16 +17,12 @@ pub fn map_funcs<'lua>(
 pub fn print_lua_error(error: &rlua::Error) {
   // TODO: Add logging
   match error {
-    rlua::Error::RuntimeError(msg) => unsafe {
-      log_error(format!("{}", msg));
-    },
+    rlua::Error::RuntimeError(msg) => log_error(format!("{}", msg)),
     rlua::Error::CallbackError{ traceback, cause } => {
-      unsafe { log_error(format!("{}", cause)) };
-      traceback.lines().for_each(|line| unsafe { log_error(line) });
+      log_error(format!("{}", cause));
+      traceback.lines().for_each(log_error);
     }
-    _ => unsafe {
-      log_error(format!("{}", error));
-    }
+    _ => log_error(format!("{}", error)),
   }
 }
 

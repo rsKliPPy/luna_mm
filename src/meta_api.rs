@@ -2,7 +2,7 @@ use std::os::raw::{c_char, c_int};
 use crate::plugin_info::PLUGIN_INFO;
 use crate::ffi_wrapper;
 use crate::meta_ffi::globals;
-use crate::meta_ffi::util::set_meta_result;
+use crate::meta_ffi::util::{set_meta_result, meta_return_value};
 use crate::meta_ffi::constant::{
   DLL_INTERFACE_VERSION,
   NEW_DLL_INTERFACE_VERSION,
@@ -108,6 +108,8 @@ unsafe extern fn get_entity_api2(
 
   (*funcs).game_init = game_init;
   (*funcs).client_connect = client_connect;
+  (*funcs).client_put_in_server = client_put_in_server;
+  (*funcs).client_disconnect = client_disconnect;
 
   1
 }
@@ -123,6 +125,9 @@ unsafe extern fn get_entity_api2_post(
   }
 
   globals::DLL_HOOK_TABLE_POST = funcs;
+
+  (*funcs).client_put_in_server = client_put_in_server_post;
+  (*funcs).client_disconnect = client_disconnect_post;
 
   1
 }
@@ -205,5 +210,26 @@ unsafe extern fn client_connect(
   address: *const c_char,
   reject_reason: *mut c_char,
 ) -> c_int {
-  ffi_wrapper::client_connect(entity, name, address, reject_reason)
+  let ret = ffi_wrapper::client_connect(entity, name, address, reject_reason);
+  meta_return_value(MetaResult::Ignored, ret)
+}
+
+unsafe extern fn client_put_in_server(entity: *mut Edict) {
+  ffi_wrapper::client_put_in_server(entity);
+  set_meta_result(MetaResult::Ignored)
+}
+
+unsafe extern fn client_put_in_server_post(entity: *mut Edict) {
+  ffi_wrapper::client_put_in_server_post(entity);
+  set_meta_result(MetaResult::Ignored)
+}
+
+unsafe extern fn client_disconnect(entity: *mut Edict) {
+  ffi_wrapper::client_disconnect(entity);
+  set_meta_result(MetaResult::Ignored)
+}
+
+unsafe extern fn client_disconnect_post(entity: *mut Edict) {
+  ffi_wrapper::client_disconnect_post(entity);
+  set_meta_result(MetaResult::Ignored)
 }
